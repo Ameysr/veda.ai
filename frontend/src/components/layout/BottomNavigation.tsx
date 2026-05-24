@@ -15,7 +15,7 @@ const navItems = [
 export function BottomNavigation() {
   const pathname = usePathname();
 
-  const isCurrent = (href: string) => pathname === href || (href === '/assignments' && pathname === '/');
+  const isCurrent = (href: string) => pathname === href;
 
   return (
     <>

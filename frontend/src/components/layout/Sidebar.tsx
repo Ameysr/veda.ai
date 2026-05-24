@@ -19,14 +19,14 @@ import { getAssignments } from "@/lib/api";
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [badgeCount, setBadgeCount] = useState(5);
+  const [badgeCount, setBadgeCount] = useState(1);
 
   useEffect(() => {
     async function fetchCount() {
       try {
         const list = await getAssignments();
-        // Fall back to 5 if no assignments found, otherwise show actual metadata list count
-        setBadgeCount(list.length || 5);
+        // Fall back to 1 if no assignments found, otherwise show actual metadata list count
+        setBadgeCount(list.length || 1);
       } catch (err) {
         console.warn("Failed to load assignment count for sidebar badge:", err);
       }
@@ -42,7 +42,7 @@ export function Sidebar() {
     { name: "My Library", href: "/library", icon: Clock },
   ];
 
-  const isCurrent = (href: string) => pathname === href || (href === '/assignments' && pathname === '/');
+  const isCurrent = (href: string) => pathname === href;
 
   return (
     <aside className="fixed left-0 top-0 hidden h-screen w-64 flex-col border-r border-gray-100 bg-surface-sidebar py-6 sm:flex z-50">
