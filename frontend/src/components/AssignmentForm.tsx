@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Calendar, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAssignmentStore, validateForm } from "@/store/assignmentStore";
-import { createAssignment } from "@/lib/api";
+import { generatePaper, saveAssignment } from "@/lib/api";
 import { FileUpload } from "./FileUpload";
 import { QuestionTypesForm } from "./QuestionTypesForm";
 
@@ -15,7 +15,7 @@ export function AssignmentForm() {
   const setField = useAssignmentStore((s) => s.setField);
   const setErrors = useAssignmentStore((s) => s.setErrors);
   const setSubmitting = useAssignmentStore((s) => s.setSubmitting);
-  const setAssignmentId = useAssignmentStore((s) => s.setAssignmentId);
+  const resetForm = useAssignmentStore((s) => s.resetForm);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +27,7 @@ export function AssignmentForm() {
 
     setSubmitting(true);
     try {
+      // Build FormData to send to stateless backend
       const fd = new FormData();
       fd.append("title", form.title.trim());
       fd.append("subject", form.subject.trim());
@@ -38,9 +39,25 @@ export function AssignmentForm() {
       fd.append("additionalInstructions", form.additionalInstructions.trim());
       if (form.file) fd.append("file", form.file);
 
-      const result = await createAssignment(fd);
-      setAssignmentId(result.id);
-      router.push(`/generate/${result.id}`);
+      // Call backend — returns the full paper synchronously
+      const questionPaper = await generatePaper(fd);
+
+      // Generate a unique ID and save everything to localStorage
+      const id = crypto.randomUUID();
+      saveAssignment({
+        id,
+        title: form.title.trim(),
+        subject: form.subject.trim(),
+        dueDate: form.dueDate,
+        questionTypes: form.questionTypes.filter((t) => t.count > 0),
+        additionalInstructions: form.additionalInstructions.trim(),
+        questionPaper,
+        createdAt: new Date().toISOString(),
+      });
+
+      // Reset form state and navigate straight to the output page
+      resetForm();
+      router.push(`/output/${id}`);
     } catch (err) {
       setErrors({
         submit: err instanceof Error ? err.message : "Submission failed",
@@ -52,7 +69,7 @@ export function AssignmentForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      {/* Step progress bar */}
+      {/* Progress indicator */}
       <div className="h-1 w-full rounded-full bg-gray-100">
         <div className="h-1 w-1/2 rounded-full bg-ink-dark transition-all" />
       </div>
@@ -64,10 +81,8 @@ export function AssignmentForm() {
           Add information about your assignment
         </p>
 
-        {/* File upload */}
         <FileUpload />
 
-        {/* Title + Subject */}
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-ink-main">Title</label>
@@ -154,11 +169,11 @@ export function AssignmentForm() {
           {isSubmitting ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Creating...
+              Generating...
             </>
           ) : (
             <>
-              Next
+              Generate
               <ChevronRight className="h-4 w-4" />
             </>
           )}

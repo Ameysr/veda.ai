@@ -1,85 +1,107 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { QuestionPaperView } from "@/components/QuestionPaperView";
 import { ActionBar } from "@/components/ActionBar";
-import { GenerationProgress } from "@/components/GenerationProgress";
-import { useAssignmentStore } from "@/store/assignmentStore";
-import { getAssignment, regenerateAssignment } from "@/lib/api";
-import { subscribeToAssignment } from "@/lib/websocket";
+import { getAssignment, generatePaper, updateAssignmentPaper, downloadPdf } from "@/lib/api";
+import type { StoredAssignment } from "@/lib/api";
+import { Loader2, AlertCircle } from "lucide-react";
 
 export default function OutputPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
 
-  const questionPaper = useAssignmentStore((s) => s.questionPaper);
-  const status = useAssignmentStore((s) => s.status);
-  const progress = useAssignmentStore((s) => s.progress);
-  const hydrateFromResponse = useAssignmentStore((s) => s.hydrateFromResponse);
-  const setStatus = useAssignmentStore((s) => s.setStatus);
-  const setQuestionPaper = useAssignmentStore((s) => s.setQuestionPaper);
-
+  const [assignment, setAssignment] = useState<StoredAssignment | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [regenError, setRegenError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const data = await getAssignment(id);
-    hydrateFromResponse(data);
-    if (data.status === "pending" || data.status === "processing") {
-      router.replace(`/generate/${id}`);
+  useEffect(() => {
+    const a = getAssignment(id);
+    if (a) {
+      setAssignment(a);
+    } else {
+      setNotFound(true);
     }
-  }, [id, hydrateFromResponse, router]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    if (status !== "processing" && status !== "pending") return;
-    const unsub = subscribeToAssignment(id, {
-      onProgress: ({ status: s, progress: p }) => {
-        setStatus(s as "pending" | "processing" | "completed" | "failed", p);
-      },
-      onComplete: async () => {
-        setIsRegenerating(false);
-        const data = await getAssignment(id);
-        hydrateFromResponse(data);
-      },
-      onFailed: () => setIsRegenerating(false),
-    });
-    return unsub;
-  }, [id, status, setStatus, hydrateFromResponse]);
+  }, [id]);
 
   const handleRegenerate = async () => {
+    if (!assignment) return;
     setIsRegenerating(true);
-    setQuestionPaper(null);
-    await regenerateAssignment(id);
-    setStatus("pending", 0);
-    router.push(`/generate/${id}`);
+    setRegenError(null);
+    try {
+      const fd = new FormData();
+      fd.append("title", assignment.title);
+      fd.append("subject", assignment.subject);
+      fd.append("dueDate", assignment.dueDate);
+      fd.append("questionTypes", JSON.stringify(assignment.questionTypes));
+      fd.append("additionalInstructions", assignment.additionalInstructions);
+
+      const newPaper = await generatePaper(fd);
+      updateAssignmentPaper(id, newPaper);
+      setAssignment({ ...assignment, questionPaper: newPaper });
+    } catch (err) {
+      setRegenError(err instanceof Error ? err.message : "Regeneration failed");
+    } finally {
+      setIsRegenerating(false);
+    }
   };
 
-  if (
-    isRegenerating ||
-    ((status === "pending" || status === "processing") && !questionPaper)
-  ) {
+  const handleDownloadPdf = async () => {
+    if (!assignment) return;
+    setIsDownloading(true);
+    try {
+      await downloadPdf(assignment);
+    } catch (err) {
+      alert("PDF download failed. Please try again.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Loading state
+  if (!assignment && !notFound) {
     return (
       <>
         <Header />
-        <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-16">
-          <GenerationProgress progress={progress} status={status || "pending"} />
+        <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
         </main>
       </>
     );
   }
 
-  if (!questionPaper) {
+  // Not found — redirect to create
+  if (notFound) {
     return (
       <>
         <Header />
-        <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
-          <p className="text-muted">Loading question paper...</p>
+        <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 px-4">
+          <AlertCircle className="h-10 w-10 text-gray-400" />
+          <p className="text-sm text-gray-500">Assignment not found.</p>
+          <button
+            onClick={() => router.push("/create")}
+            className="btn-primary"
+          >
+            Create New Assignment
+          </button>
+        </main>
+      </>
+    );
+  }
+
+  // Regenerating overlay
+  if (isRegenerating) {
+    return (
+      <>
+        <Header />
+        <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+          <p className="text-sm text-gray-500">Regenerating question paper…</p>
         </main>
       </>
     );
@@ -89,14 +111,20 @@ export default function OutputPage() {
     <>
       <Header />
       <main className="mx-auto max-w-4xl px-4 py-8 pb-28 sm:px-6">
+        {regenError && (
+          <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+            {regenError}
+          </div>
+        )}
         <div className="card mb-8 print:shadow-none">
-          <QuestionPaperView paper={questionPaper} />
+          <QuestionPaperView paper={assignment!.questionPaper} />
         </div>
       </main>
       <ActionBar
-        assignmentId={id}
+        onDownloadPdf={handleDownloadPdf}
         onRegenerate={handleRegenerate}
         isRegenerating={isRegenerating}
+        isDownloading={isDownloading}
       />
     </>
   );

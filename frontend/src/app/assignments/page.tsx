@@ -23,24 +23,21 @@ export default function AssignmentsPage() {
   const router = useRouter();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const loadAssignments = async () => {
+  const loadAssignments = () => {
     try {
       setLoading(true);
-      const data = await getAssignments();
-      const mapped = data.map((a: any) => ({
+      const data = getAssignments();
+      const mapped = data.map((a) => ({
         id: a.id,
         title: a.title,
         assignedOn: formatDate(a.createdAt),
         dueDate: formatDate(a.dueDate),
       }));
       setAssignments(mapped);
-      setError(null);
     } catch (err) {
       console.error(err);
-      setError("Failed to load assignments. Please check if the backend is running.");
     } finally {
       setLoading(false);
     }
@@ -50,9 +47,9 @@ export default function AssignmentsPage() {
     loadAssignments();
   }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     try {
-      await deleteAssignment(id);
+      deleteAssignment(id);
       setAssignments((prev) => prev.filter((a) => a.id !== id));
     } catch (err) {
       alert("Failed to delete assignment");
@@ -71,22 +68,6 @@ export default function AssignmentsPage() {
         <div className="text-center">
           <Loader2 className="mx-auto h-8 w-8 animate-spin text-ink-muted" />
           <p className="mt-2 text-sm text-ink-muted">Loading assignments...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center px-4">
-        <div className="text-center max-w-md">
-          <p className="text-red-600 mb-4 font-medium">{error}</p>
-          <button
-            onClick={loadAssignments}
-            className="btn-primary"
-          >
-            Retry
-          </button>
         </div>
       </div>
     );
@@ -135,7 +116,7 @@ export default function AssignmentsPage() {
               key={assignment.id}
               assignment={assignment}
               onDelete={handleDelete}
-              onView={(id) => router.push(`/generate/${id}`)}
+              onView={(id) => router.push(`/output/${id}`)}
             />
           ))}
         </div>

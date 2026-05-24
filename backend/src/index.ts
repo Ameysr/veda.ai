@@ -1,11 +1,7 @@
 import express from "express";
 import cors from "cors";
-import http from "http";
-import mongoose from "mongoose";
 import { config } from "./config";
-import assignmentsRouter from "./routes/assignments.routes";
-import { initWebSocket } from "./websocket";
-import { startGenerationWorker } from "./workers/generation.worker";
+import generateRouter from "./routes/generate.routes";
 
 const app = express();
 
@@ -15,29 +11,14 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "4mb" }));
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "vedaai-backend" });
 });
 
-app.use("/api/assignments", assignmentsRouter);
+app.use("/api", generateRouter);
 
-const httpServer = http.createServer(app);
-initWebSocket(httpServer);
-
-async function bootstrap(): Promise<void> {
-  await mongoose.connect(config.mongoUri);
-  console.log("Connected to MongoDB");
-
-  await startGenerationWorker();
-
-  httpServer.listen(config.port, () => {
-    console.log(`Server running on http://localhost:${config.port}`);
-  });
-}
-
-bootstrap().catch((err) => {
-  console.error("Failed to start server:", err);
-  process.exit(1);
+app.listen(config.port, () => {
+  console.log(`VedaAI backend running on http://localhost:${config.port}`);
 });

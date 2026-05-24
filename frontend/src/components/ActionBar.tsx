@@ -1,19 +1,20 @@
 "use client";
 
-import { Download, RefreshCw, ArrowLeft } from "lucide-react";
+import { Download, RefreshCw, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { getPdfUrl } from "@/lib/api";
 
 interface Props {
-  assignmentId: string;
+  onDownloadPdf: () => void;
   onRegenerate: () => void;
   isRegenerating?: boolean;
+  isDownloading?: boolean;
 }
 
 export function ActionBar({
-  assignmentId,
+  onDownloadPdf,
   onRegenerate,
   isRegenerating,
+  isDownloading,
 }: Props) {
   return (
     <div className="sticky bottom-0 z-40 -mx-4 border-t border-gray-100 bg-white/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
@@ -29,20 +30,22 @@ export function ActionBar({
             disabled={isRegenerating}
             className="btn-secondary"
           >
-            <RefreshCw
-              className={`h-4 w-4 ${isRegenerating ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`h-4 w-4 ${isRegenerating ? "animate-spin" : ""}`} />
             Regenerate
           </button>
-          <a
-            href={getPdfUrl(assignmentId)}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={onDownloadPdf}
+            disabled={isDownloading}
             className="btn-primary"
           >
-            <Download className="h-4 w-4" />
+            {isDownloading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
             Download PDF
-          </a>
+          </button>
         </div>
       </div>
     </div>
